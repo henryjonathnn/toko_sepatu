@@ -13,7 +13,7 @@ CREATE TABLE users (
     last_login_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
-)
+);
 
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_role ON users(role);
@@ -25,7 +25,7 @@ CREATE TABLE refresh_tokens (
     token VARCHAR(512) NOT NULL,
     expires_at TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
-)
+);
 
 CREATE INDEX idx_refresh_tokens_user_id ON refresh_tokens(user_id);
 CREATE INDEX idx_refresh_tokens_token ON refresh_tokens(token);
@@ -40,14 +40,14 @@ CREATE TABLE brands (
     name VARCHAR(100) UNIQUE NOT NULL,
     slug VARCHAR(100) UNIQUE NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
-)
+);
 
 CREATE TABLE categories (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) UNIQUE NOT NULL,
     slug VARCHAR(100) UNIQUE NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
-)
+);
 
 CREATE TABLE products (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -59,17 +59,16 @@ CREATE TABLE products (
     gender gender_type NOT NULL,
     price DECIMAL (15, 2) NOT NULL CHECK (price >= 0),
     is_active BOOLEAN DEFAULT true,
-    is_featured BOOLEAN DEFAULT false,
-    view_count INTEGER DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
-)
+);
 
 CREATE INDEX idx_products_slug ON products(slug);
 CREATE INDEX idx_products_brand_id ON products(brand_id);
 CREATE INDEX idx_products_category_id ON products(category_id);
 CREATE INDEX idx_products_active ON products(is_active);
 CREATE INDEX idx_products_price ON products(price);
+CREATE INDEX idx_products_created_at ON products(created_at DESC);
 
 -- Product variants table
 
@@ -95,7 +94,7 @@ CREATE TABLE product_images (
     image_url TEXT NOT NULL,
     display_order INTEGER DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW()
-)
+);
 
 CREATE INDEX idx_images_product_id ON product_images(product_id);
 
@@ -105,7 +104,7 @@ CREATE TABLE carts (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
-)
+);
 
 CREATE INDEX idx_carts_user_id ON carts(user_id);
 
@@ -116,7 +115,7 @@ CREATE TABLE cart_items (
     quantity INTEGER NOT NULL CHECK (quantity > 0),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(cart_id, variant_id)
-)
+);
 
 CREATE INDEX idx_cart_items_cart_id ON cart_items(cart_id);
 
@@ -179,7 +178,7 @@ CREATE TABLE orders (
     completed_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
-)
+);
 
 CREATE INDEX idx_orders_number ON orders(order_number);
 CREATE INDEX idx_orders_user_id ON orders(user_id);
@@ -212,7 +211,7 @@ CREATE TYPE payment_status AS ENUM (
     'settlement',
     'expire',
     'cancel'
-)
+);
 
 CREATE TABLE payments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -236,7 +235,7 @@ CREATE TABLE payments (
     paid_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
-)
+);
 
 CREATE INDEX idx_payments_order_id ON payments(order_id);
 CREATE INDEX idx_payments_transaction_id ON payments(transaction_id);
@@ -249,7 +248,7 @@ CREATE TYPE notification_type AS ENUM (
     'order_shipped',
     'order_completed',
     'stock_low'
-)
+);
 
 CREATE TABLE notifications (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -260,7 +259,7 @@ CREATE TABLE notifications (
     order_id UUID REFERENCES orders(id) ON DELETE CASCADE,
     is_read BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW()
-)
+);
 
 CREATE INDEX idx_notifications_user_id ON notifications(user_id);
 CREATE INDEX idx_notifications_is_read ON notifications(is_read);
@@ -276,7 +275,47 @@ CREATE TABLE reviews (
     comment TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(product_id, user_id, order_id)
-)
+);
 
 CREATE INDEX idx_reviews_product_id ON reviews(product_id);
 CREATE INDEX idx_reviews_user_id ON reviews(user_id);
+
+-- Triggers to auto update updated_at fields
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURN TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Apply trigger to relevant tables
+CREATE TRIGGER update_users_timestamp
+BEFORE UPDATE ON users
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_products_timestamp
+BEFORE UPDATE ON products
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_product_variants_timestamp
+BEFORE UPDATE ON product_variants
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_carts_timestamp
+BEFORE UPDATE ON carts
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_orders_timestamp
+BEFORE UPDATE ON orders
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_payments_timestamp
+BEFORE UPDATE ON payments
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
